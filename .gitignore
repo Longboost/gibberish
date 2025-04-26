@@ -1,5 +1,8 @@
-.cksm
-.cpp
-.h
-.bin
-.pyc
+*.cksm
+*.cpp
+*.h
+*.bin
+*.pyc
+*.bak
+*.txt
+*.yaml
