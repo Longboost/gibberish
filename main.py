@@ -393,7 +393,9 @@ def buildHeaderSection(section: fileSection, sections: list[fileSection]):
 
 def main():
     def helperText():
-        print("Usage:\n  python main.py <file>")
+        print("""Usage:
+    python main.py <file>.bin       - parses a KSM *.bin file and outputs it to *.cksm and *.hksm
+    python main.py <file>.cksm      - parses a *.cksm file (and respective *.hksm file) and builds into KSM *.bin""")
     
     if len(sys.argv) == 3 and sys.argv[2] == "-idtest":
         parseIDTest()
@@ -428,12 +430,12 @@ def main():
             filename = f"{sys.argv[1].removesuffix(".bin")}.cksm"
         open(filename, "w", encoding='utf-8').write(outFile)
 
-        filename = f"{filename.removesuffix(".cksm")}.h"
+        filename = f"{filename.removesuffix(".cksm")}.hksm"
         open(filename, "w", encoding='utf-8').write(outHeaderFile)
         return
     if sys.argv[1].endswith(".cksm"):
         fileName = sys.argv[1]
-        headerFileName = f"{fileName.removesuffix(".cksm")}.h"
+        headerFileName = f"{fileName.removesuffix(".cksm")}.hksm"
         
         fileText = open(headerFileName, "r", encoding = "utf-8").readlines()
         definedImports, definedVariables, identifierSlotOffset = parseCppHeaderFile(fileText)
@@ -460,7 +462,7 @@ def main():
         for section in sections[:-1]:
             section.words.insert(0, section.itemCount)
             outFile += section.words.tobytes()
-        filename = f"{sys.argv[1].removesuffix(".cpp")}.re.bin"
+        filename = f"{sys.argv[1].removesuffix(".cksm")}.re.bin"
         open(filename, "wb").write(outFile)
         return
     

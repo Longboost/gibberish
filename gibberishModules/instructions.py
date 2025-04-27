@@ -100,13 +100,17 @@ class expression:
             return thisData.generateVariableInstruction(matchedVariable)
         
         self.instructions = list()
-        while not (file.term in exitingCharacters or (file.line == '' and (';' in exitingCharacters or '{' in exitingCharacters))):
+        while not (
+                (file.term is None and (';' in exitingCharacters or '{' in exitingCharacters)) or
+                file.term in exitingCharacters
+                ):
             if type(newInstruction := identifyInstructionFromCpp(file, thisData, True)) == callInstruction:
                 newInstruction.readFromCpp(file, thisData, True)
             else:
                 newInstruction = readAnyValue()
                 file.getNextTerm()
             self.instructions.append(newInstruction)
+        if file.term is None: file.term = ';'
         return file.term
     
     def writeToKsm(self, section: object):
@@ -154,11 +158,10 @@ class returnInstruction(parentInstruction):
     def readFromCpp(self, file: object, thisData: object):
         assert file.term == "return"
         file.getNextTerm()
-        if file.term in ('*', '*;'):
+        if file.term == '*':
             self.disableExpression = True
             thisData.allowDisableExpression = True
-            if file.term == '*;':
-                file.allowGetNextLine()
+            if file.allowGetNextLine(True, False):
                 self.returnValue = expression()
                 self.returnValue.instructions = list()
                 return
@@ -1325,23 +1328,19 @@ class assignmentInstruction(parentInstruction):
     def readFromCpp(self, file: object, thisData: object):
         self.gettingNext = False
         self.variable = expression()
-        delimiter = self.variable.readFromCpp(file, thisData, ('*=', '=', ';', '*', '++', '--', '*++', '*--'))
+        delimiter = self.variable.readFromCpp(file, thisData, ('=', ';', '*', '++', '--'))
         assert len(self.variable.instructions) == 1, (file.index+1, self.variable.instructions)
         self.variable = self.variable.instructions[0]
-        if not delimiter in ('=', '*='):
-            if delimiter == '*;':
-                self.disableExpression = True
-                thisData.allowDisableExpression = True
+        if delimiter == '*':
+            self.disableExpression = True
+            thisData.allowDisableExpression = True
+            file.getNextTerm()
+            delimiter = file.term
+        if delimiter != '=':
             self.value = expression()
             self.value.instructions = list()
             file.allowGetNextLine(True, True)
             return
-        if delimiter == '*=':
-            self.disableExpression = True
-            thisData.allowDisableExpression = True
-        if delimiter in ('*++', '*--'):
-            self.disableExpression = True
-            thisData.allowDisableExpression = True
             
         if not isinstance(match:= identifyInstructionFromCpp(file, thisData), (assignmentInstruction, type(None))):
             self.value = match
@@ -2875,29 +2874,6 @@ invertedOperatorDict = {value: key for key, value in operatorDict.items()}
 
 operatorChars = "".join(operatorDict.values()) + ";{}[]=,#\\:"
 bracketsAndDelimiters = "(){}[],'\""
-
-keyWordInstructionDict = {
-    
-    "noop": noopInstruction,
-    "return": returnInstruction,
-    #(label): labelInstruction,
-    "public": openFunctionInstruction,
-    "private": openFunctionInstruction,
-    "thread": openThreadInstruction,
-    "childthread": openThreadChildInstruction,
-    "goto": gotoInstruction,
-    "delete": deleteVariableInstruction,
-    "is_incomplete": isChildThreadIncompleteInstruction,
-    "sleep_frames": sleepFramesInstruction,
-    "sleep_milliseconds": sleepMillisecondsInstruction,
-    "if": ifInstruction,
-    "else if": elseIfInstruction,
-    "else": elseInstruction,
-    "switch": switchInstruction,
-    "case": caseInstruction,
-    "default": caseDefaultInstruction,
-    "break": breakSwitchInstruction,
-}
 
 def isOperatorChar(character: str) -> bool:
     return character in operatorChars
