@@ -86,7 +86,7 @@ def arrayDefinitionDictByIDGetAllKeys() -> list[int]:
     return arrayDefinitionDictByID.keys()
 
 def getMinimumAndMaxmimumArrayIdentifiers() -> (int, int):
-    identifierList = [identifier & 0x00ffffff for identifier in arrayDefinitionDictByID.keys()]
+    identifierList = [identifier & 0x0fffffff for identifier in arrayDefinitionDictByID.keys()]
     if not identifierList:
         return 0xffffffff, 0x00000000
     return min(identifierList), max(identifierList)

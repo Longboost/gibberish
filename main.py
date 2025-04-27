@@ -51,6 +51,8 @@ def parseInstructions(section: fileSection) -> str:
     wordsEnumerated = enumerate(section.words)
     outstr = ""
     indentLevel = 0
+    if versionRaw == 0x00010302:
+        setMaxInstructionID(0x76)
     
     while currentWord.index < section.itemCount - 1:
         getNextWord(wordsEnumerated, currentWord)
@@ -101,6 +103,44 @@ def getMinimumAndMaximumIdentifiers() -> (int, int):
         return -1, -1
     return finalMin, finalMax
     
+def parseIDTest():
+    path = sys.argv[1]
+    idRangeList = list()
+    for root, dirNames, fileNames in os.walk(path):
+        for fileName in fileNames:
+            resetVariableDict()
+            fullFileName = f"{root}\\{fileName}"
+            rawFile = open(fullFileName, "rb").read()
+            fileWords = array.array("L", rawFile)
+            try:
+                sections = readHeader(fileWords)
+                parseFunctionDefinitions(sections[1], versionRaw)
+                parseVariables(sections[2], variableScope.static, versionRaw)
+                parseArrayDefinitions(sections[3])
+                parseVariables(sections[4], variableScope.const)
+                parseImportDefinitions(sections[5], versionRaw)
+                parseVariables(sections[6], variableScope.Global)
+            except:
+                fullFileName = fullFileName.removeprefix(path)
+                idRangeList.append((-2, -2, fullFileName))
+            else:
+                fullFileName = fullFileName.removeprefix(path)
+                minID, maxID = getMinimumAndMaximumIdentifiers()
+                idRangeList.append((minID, maxID, fullFileName))
+    idRangeList.sort(key=lambda x: x[0])
+    lastMaxID = None
+    outFile = ""
+    for minID, maxID, fullFileName in idRangeList:
+        if minID == -1:
+            outFile += f"NONE - {fullFileName}\n"
+        elif minID == -2:
+            outFile += f"ERR - {fullFileName}\n"
+        else:
+            outFile += f"{hex(minID // 8)} - {fullFileName}\n"
+            lastMaxID = maxID
+    filename = "list.txt"
+    open(filename, "w", encoding='utf-8').write(outFile)
+
 def parseIDTest2():
     path = sys.argv[1]
     importList = list()
@@ -146,44 +186,6 @@ def parseIDTest2():
     filename = "listC.txt"
     open(filename, "w", encoding='utf-8').write(outFileC)
     
-def parseIDTest():
-    path = sys.argv[1]
-    idRangeList = list()
-    for root, dirNames, fileNames in os.walk(path):
-        for fileName in fileNames:
-            resetVariableDict()
-            fullFileName = f"{root}\\{fileName}"
-            rawFile = open(fullFileName, "rb").read()
-            fileWords = array.array("L", rawFile)
-            try:
-                sections = readHeader(fileWords)
-                parseFunctionDefinitions(sections[1], versionRaw)
-                parseVariables(sections[2], variableScope.static, versionRaw)
-                parseArrayDefinitions(sections[3])
-                parseVariables(sections[4], variableScope.const)
-                parseImportDefinitions(sections[5], versionRaw)
-                parseVariables(sections[6], variableScope.Global)
-            except:
-                fullFileName = fullFileName.removeprefix(path)
-                idRangeList.append((-2, -2, fullFileName))
-            else:
-                fullFileName = fullFileName.removeprefix(path)
-                minID, maxID = getMinimumAndMaximumIdentifiers()
-                idRangeList.append((minID, maxID, fullFileName))
-    idRangeList.sort(key=lambda x: x[0])
-    lastMaxID = None
-    outFile = ""
-    for minID, maxID, fullFileName in idRangeList:
-        if minID == -1:
-            outFile += f"NONE - {fullFileName}\n"
-        elif minID == -2:
-            outFile += f"ERR - {fullFileName}\n"
-        else:
-            outFile += f"{hex(minID // 8)} - {fullFileName}\n"
-            lastMaxID = maxID
-    filename = "list.txt"
-    open(filename, "w", encoding='utf-8').write(outFile)
-
 def parseFindInstruction(path: str, targetInstructionID: int):
     setTargetInstructionID(targetInstructionID)
     outFile = ""
@@ -409,7 +411,7 @@ def main():
         else:
             parseFindInstruction(sys.argv[1], int(sys.argv[3], 0))
         return
-    if len(sys.argv) != 2:
+    elif len(sys.argv) != 2:
         helperText()
         return
     if sys.argv[1].endswith(".bin"):
@@ -423,11 +425,14 @@ def main():
         parseVariables(sections[4], variableScope.const)
         parseImportDefinitions(sections[5], versionRaw)
         parseVariables(sections[6], variableScope.Global)
-        outHeaderFile = writeCppHeaderFile(versionRaw)
+        minID, maxID = getMinimumAndMaximumIdentifiers()
+        outHeaderFile = writeCppHeaderFile(versionRaw, minID)
         outFile = parseInstructions(sections[7])
         
         if filename is None:
             filename = f"{sys.argv[1].removesuffix(".bin")}.cksm"
+        else:
+            filename = f"{filename.removesuffix(".cpp")}.cksm"
         open(filename, "w", encoding='utf-8').write(outFile)
 
         filename = f"{filename.removesuffix(".cksm")}.hksm"

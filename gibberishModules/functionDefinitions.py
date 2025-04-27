@@ -89,7 +89,8 @@ def readFunctionDefinitionFromKsm(wordsEnumerated: enumerate[int], currentWord: 
     else:
         definedLocals = dict()
         for _ in range(localVariableCount):
-            newLocal = readVariableFromKsm(wordsEnumerated, currentWord, variableScope.localVar)
+            newLocal, newLocalIdentifier = readVariableFromKsm(wordsEnumerated, currentWord, variableScope.localVar)
+            definedLocals[newLocalIdentifier] = newLocal
     
     # local arrays
     getNextWord(wordsEnumerated, currentWord)
@@ -152,10 +153,10 @@ def getAllLabelAndArrayIDs() -> list[int]:
     return identifierList
 
 def getMinimumAndMaxmimumFunctionIdentifiers() -> (int, int):
-    identifierList = [identifier & 0x00ffffff for identifier in functionDefinitionDict.keys()]
+    identifierList = [identifier & 0x0fffffff for identifier in functionDefinitionDict.keys()]
     if not identifierList:
         return 0xffffffff, 0x00000000
     for functionDefinition in functionDefinitionDict.values():
-        identifierList.extend(labelID & 0x00ffffff for labelID in functionDefinition.labelsByID)
-        identifierList.extend(labelID & 0x00ffffff for labelID in functionDefinition.localArraysByID)
+        identifierList.extend(labelID & 0x0fffffff for labelID in functionDefinition.labelsByID)
+        identifierList.extend(labelID & 0x0fffffff for labelID in functionDefinition.localArraysByID)
     return min(identifierList), max(identifierList)

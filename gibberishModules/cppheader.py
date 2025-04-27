@@ -3,11 +3,14 @@ from gibberishModules.instructions import importedInstruction, variableInstructi
 from gibberishModules.variables import variable, variableDictGetAllValues, variableScope, writeVariableValue, isVariableScope
 from gibberishModules.terms import iterableFile
 
-def writeCppHeaderFile(versionRaw: int) -> str:
+def writeCppHeaderFile(versionRaw: int, minID: int) -> str:
     outstr = ""
     indentLevel = 0
     definedGameFlags = set()
     imports = list(importDefinitionDictGetAllValues())[::-1]
+    if minID == -1:
+        minID = 0x00100000
+    outstr += f"#offset {hex(minID)};\n"
     if versionRaw < 0x00010302:
         for thisImport in imports:
             thisInstruction = importedInstruction(thisImport.identifier, False)
@@ -46,7 +49,7 @@ def writeCppHeaderFile(versionRaw: int) -> str:
 def parseCppHeaderFile(fileLines: list[str]) -> (dict[importDefinition], dict[variable], int):
     definedImports = dict()
     definedVariables = dict()
-    identifierSlotOffset = 0
+    identifierSlotOffset = 0x00100000
     file = iterableFile(fileLines)
     while True:
         file.allowGetNextLine(True, False)

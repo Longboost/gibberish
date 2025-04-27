@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from gibberishModules.words import *
 from gibberishModules.strings import *
 
+versionRaw = None
+
 class variableScope(Enum):
     tempVar = 1
     localVar = 2
@@ -117,10 +119,10 @@ def parseVariables(section: object, scope: IntEnum, versionRawInput: int | None 
         newDefinition, variableID = readVariableFromKsm(wordsEnumerated, currentWord, scope)
         variableDict[variableID] = newDefinition
 
-def variableDictGet(key: int) -> variable | None:
+def variableDictGet(key: int, function: object = None) -> variable | None:
     variableMatch = variableDict.get(key, None)
     
-    if not variableMatch is None:
+    if variableMatch is not None:
         if versionRaw < 0x00010302:
             assert not (bool((key & 0xf0000000) == 0x30000000) ^ (variableMatch.scope == variableScope.static)), hex(key)
             assert not (bool((key & 0xf0000000) == 0x40000000) ^ (variableMatch.scope == variableScope.const)), hex(key)
@@ -146,6 +148,16 @@ def variableDictGet(key: int) -> variable | None:
         localIdentifier = (key >> 8) & 0xff
         alias = f"localVar{localIdentifier}"
         return variable(None, key, alias, 0, variableScope.localVar, None)
+    
+    if not versionRaw is None and versionRaw >= 0x00010302:
+        variableMatch = function.definedLocals.get(key, None) if function is not None else None
+        if variableMatch is not None:
+            return variableMatch
+        
+        if (key & 0xffffff00) == 0x40000100:
+            tempIdentifier = key & 0xff
+            alias = f"tempVar{tempIdentifier}"
+            return variable(None, key, alias, 0, variableScope.tempVar, None)    
     
     return None
 

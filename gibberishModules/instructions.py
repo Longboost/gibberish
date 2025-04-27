@@ -11,6 +11,10 @@ indentLevel = 0
 indentOffsetNextLine = 0
 currentFunctionTree = list()
 variableIDsDefinedInCpp = set()
+maxInstructionID = 0xa0
+def setMaxInstructionID(value: int):
+    global maxInstructionID
+    maxInstructionID = value
 
 #[parent]
 #the superclass all instructions inherit from
@@ -79,7 +83,7 @@ class expression:
             if not matchedImport is None:
                 if not matchedImport in thisData.usedImportSlots:
                     thisData.usedImportSlots.append(matchedImport)
-                    matchedImport.identifier = len(thisData.usedImportSlots) + 0xa0
+                    matchedImport.identifier = len(thisData.usedImportSlots) + maxInstructionID
                 matchedImport.timesUsed += 1
                 return importedInstruction(matchedImport.identifier, False)
             
@@ -518,6 +522,8 @@ class caseGotoInstruction(gotoInstruction):
 #Call - Used to execute another function within the current one.
 class callInstruction(parentInstruction):
     isThreaded = False
+    arguments = tuple()
+    callee = unknownInstruction(0x00)
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
         argumentsText = ", ".join(argument.writeToCpp(indentLevel)[0] for argument in self.arguments)
         if self.isThreaded:
@@ -554,7 +560,7 @@ class callInstruction(parentInstruction):
         if (match:= thisData.definedImports.get(name, None)) is not None:
             if not match in thisData.usedImportSlots:
                 thisData.usedImportSlots.append(match)
-                match.identifier = len(thisData.usedImportSlots) + 0xa0
+                match.identifier = len(thisData.usedImportSlots) + maxInstructionID
             match.timesUsed += 1
             thisData.importCount += 1
             self.match = match
@@ -1201,7 +1207,12 @@ class whileInstruction(parentInstruction):
         return cppText, indentLevel, indentOffsetNextLine
     
     def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
-        if self.disableExpression:
+        if versionRaw >= 0x00010302:
+            assert not self.disableExpression
+            expressionBypass = True
+        else:
+            expressionBypass = False
+        if self.disableExpression or expressionBypass:
             getNextWord(wordsEnumerated, currentWord)
             self.condition = matchInstruction(currentWord.value, True)(currentWord.value, False)
         else:
@@ -1402,6 +1413,9 @@ class closeExpressionInstruction(unknownInstruction):
 #Operators
 class operatorInstruction(parentInstruction):
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
+        if versionRaw >= 0x00010302:
+            return operatorDictAlt[self.instructionID], indentLevel, 0
+            
         return operatorDict[self.instructionID], indentLevel, 0
 
 ...
@@ -2061,7 +2075,7 @@ class functionAssignmentInstruction(assignmentInstruction):
         if (match:= thisData.definedImports.get(name, None)) is not None:
             if not match in thisData.usedImportSlots:
                 thisData.usedImportSlots.append(match)
-                match.identifier = len(thisData.usedImportSlots) + 0xa0
+                match.identifier = len(thisData.usedImportSlots) + maxInstructionID
             match.timesUsed += 1
             thisData.importCount += 1
             self.match = match
@@ -2568,8 +2582,11 @@ class variableInstruction(parentInstruction):
     
     def __init__(self, instructionID: int | None = None, disableExpression: bool = False):
         parentInstruction.__init__(self, instructionID, disableExpression)
-        
-        variableDef = variableDictGet(self.instructionID)
+        if currentFunctionTree:
+            variableDef = variableDictGet(self.instructionID, currentFunctionTree[-1])
+        else:
+            variableDef = variableDictGet(self.instructionID)
+            
         self.isVariableDef = False
         if currentFunctionTree:
             self.function = currentFunctionTree[-1]
@@ -2616,7 +2633,7 @@ class variableInstruction(parentInstruction):
         if self.isVariableDeclaration:
             scopeTxt = variableScopeEnumIntToStringDictGet(self.scope)
             prefixTxt = f"{scopeTxt} "
-            if self.scope == variableScope.localVar and self.function.localVariableTypes[int(self.alias[8:])] == "ref":
+            if versionRaw < 0x00010302 and self.scope == variableScope.localVar and self.function.localVariableTypes[int(self.alias[8:])] == "ref":
                 prefixTxt += "ref "
             if not self.scope in (variableScope.tempVar, variableScope.localVar, variableScope.tempStaticVar):
                 prefixTxt += f"{self.dataTypeString} "
@@ -2654,7 +2671,7 @@ class importedInstruction(parentInstruction):
         
         self.importDefinition = importDefinitionDictGet(self.instructionID)
         if self.importDefinition is None:
-            self.name = "undef"
+            self.name = "undef_" + hex(self.instructionID)
         else:
             self.name = self.importDefinition.name
     
@@ -2671,16 +2688,20 @@ def matchInstruction(instructionID: int, biasForVariables: bool = True) -> paren
     if (instructionID & 0xffff0000):
         return variableInstruction
     
-    if 0x41 <= instructionID <= 0x56:
+    if versionRaw >= 0x00010302:
+        if 0x3e <= instructionID <= 0x53:
+            checkForTargetInstruction(instructionID)
+            return operatorInstruction
+    elif 0x41 <= instructionID <= 0x56:
         checkForTargetInstruction(instructionID)
         return operatorInstruction
     
-    if (instructionID & 0xff) > 0xa0 or (biasForVariables and (instructionID & 0xff00)):
+    if (instructionID & 0xff) > maxInstructionID or (biasForVariables and (instructionID & 0xff00)):
         return importedInstruction
     
     checkForTargetInstruction(instructionID)
-    if versionRaw >= 0x00010302 and instructionID > 0x09:
-        return unknownInstruction
+    if versionRaw >= 0x00010302:
+        return instructionDictAlt.get(instructionID, unknownInstruction)
     return instructionDict.get(instructionID, unknownInstruction)
 
 def readPotentialExpression(wordsEnumerated: enumerate[int], currentWord: object, disableExpression: bool) -> parentInstruction | expression | None:
@@ -2872,6 +2893,81 @@ operatorDict = {
 
 invertedOperatorDict = {value: key for key, value in operatorDict.items()}
 
+instructionDictAlt = {
+    
+    0x01: endFileInstruction,
+    0x02: noopInstruction,
+    0x03: returnInstruction,
+    0x04: labelInstruction,
+    0x05: openFunctionInstruction,
+    0x06: openThreadInstruction,
+    0x07: openThreadChildInstruction,
+    0x08: closeFunctionArgumentsInstruction,
+    0x09: closeFunctionInstruction,
+    0x0a: gotoInstruction,
+    0x0b: callInstruction,
+    0x0c: threadCallInstruction,
+    0x0d: threadCallChildInstruction,
+    
+    0x10: closeCallArgumentsInstruction,
+    0x11: deleteVariableInstruction,
+    
+    0x14: isChildThreadIncompleteInstruction,
+    0x15: sleepFramesInstruction,
+    0x16: sleepMillisecondsInstruction,
+    0x17: ifInstruction,
+    
+    0x26: endIfInstruction,
+    
+    0x36: whileInstruction,    
+    0x37: breakWhileInstruction,
+    0x38: continueWhileInstruction,
+    0x39: endWhileInstruction,
+    0x3a: assignmentInstruction,
+    
+    0x3d: closeExpressionInstruction,
+    
+    0x6e: unidentified7cInstruction,
+    0x6f: unidentified7dInstruction,
+    
+    0x72: variableCallInstruction,
+    0x73: variableThreadCallInstruction,
+    0x74: variableThreadCallChildInstruction,
+    
+}
+
+operatorDictAlt = {
+    0x3e: '(',
+    0x3f: ')',
+    
+    0x40: '||',
+    0x41: '&&',
+    
+    0x42: '|',
+    0x43: '&',
+    0x44: '^',
+    0x45: '<<',
+    0x46: '>>',
+    
+    0x47: '==',
+    0x48: '!=',
+    0x49: '>',
+    0x4a: '<',
+    0x4b: '>=',
+    0x4c: '<=',
+    
+    0x4d: '++',
+    0x4e: '--',
+    
+    0x4f: '%',
+    0x50: '+',
+    0x51: '-',
+    0x52: '*',
+    0x53: '/'
+}
+
+
+
 operatorChars = "".join(operatorDict.values()) + ";{}[]=,#\\:"
 bracketsAndDelimiters = "(){}[],'\""
 
@@ -2904,7 +3000,7 @@ def resetFoundInstructionsSet():
 
 def checkForTargetInstruction(instructionID: int):
     global targetInstructionID, targetInstructionFound, foundInstructions
-    assert 0x00 <= instructionID <= 0xa0
+    assert 0x00 <= instructionID <= maxInstructionID
     if targetInstructionID == "all":
         foundInstructions.add(instructionID)
     elif not targetInstructionID is None and targetInstructionID == instructionID:
