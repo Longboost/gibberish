@@ -110,7 +110,8 @@ def parseIDTest():
         for fileName in fileNames:
             resetVariableDict()
             fullFileName = f"{root}\\{fileName}"
-            rawFile = open(fullFileName, "rb").read()
+            with open(fullFileName, "rb") as file:
+                rawFile = file.read()
             fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
@@ -139,7 +140,8 @@ def parseIDTest():
             outFile += f"{hex(minID // 8)} - {fullFileName}\n"
             lastMaxID = maxID
     filename = "list.txt"
-    open(filename, "w", encoding='utf-8').write(outFile)
+    with open(filename, "w", encoding='utf-8') as file:
+        file.write(outFile)
 
 def parseIDTest2():
     path = sys.argv[1]
@@ -148,7 +150,8 @@ def parseIDTest2():
         for fileName in fileNames:
             resetVariableDict()
             fullFileName = f"{root}\\{fileName}"
-            rawFile = open(fullFileName, "rb").read()
+            with open(fullFileName, "rb") as file:
+                rawFile = file.read()
             fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
@@ -180,11 +183,14 @@ def parseIDTest2():
         outFileB += thisImport.name + "\n"
         outFileC += thisImport.foundIn + "\n"
     filename = "listA.txt"
-    open(filename, "w", encoding='utf-8').write(outFileA)
+    with open(filename, "w", encoding='utf-8') as file:
+        file.write(outFileA)
     filename = "listB.txt"
-    open(filename, "w", encoding='utf-8').write(outFileB)
+    with open(filename, "w", encoding='utf-8') as file:
+        file.write(outFileB)
     filename = "listC.txt"
-    open(filename, "w", encoding='utf-8').write(outFileC)
+    with open(filename, "w", encoding='utf-8') as file:
+        file.write(outFileC)
     
 def parseFindInstruction(path: str, targetInstructionID: int):
     setTargetInstructionID(targetInstructionID)
@@ -194,7 +200,8 @@ def parseFindInstruction(path: str, targetInstructionID: int):
             resetVariableDict()
             setTargetInstructionFound(False)
             fullFileName = f"{root}\\{fileName}"
-            rawFile = open(fullFileName, "rb").read()
+            with open(fullFileName, "rb") as file:
+                rawFile = file.read()
             fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
@@ -215,7 +222,8 @@ def parseFindInstruction(path: str, targetInstructionID: int):
                     outFile += f"FOUND - {fullFileName}\n"
             print(f"{fullFileName} processed.")
     filename = "list.txt"
-    open(filename, "w", encoding='utf-8').write(outFile)
+    with open(filename, "w", encoding='utf-8') as file:
+        file.write(outFile)
 
 def parseFindAllInstructions(path: str):
     setTargetInstructionID("all")
@@ -226,7 +234,8 @@ def parseFindAllInstructions(path: str):
             resetVariableDict()
             resetFoundInstructionsSet()
             fullFileName = f"{root}\\{fileName}"
-            rawFile = open(fullFileName, "rb").read()
+            with open(fullFileName, "rb") as file:
+                rawFile = file.read()
             fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
@@ -252,7 +261,8 @@ def parseFindAllInstructions(path: str):
         for fileName in fileNameList:
             outFile += f"  - {fileName}\n"
     filename = "list.yaml"
-    open(filename, "w", encoding='utf-8').write(outFile)
+    with open(filename, "w", encoding='utf-8') as file:
+        file.write(outFile)
 
 def buildSummarySection(section: fileSection, importCount: int, allowDisableExpression: bool):
     section.words.append(0x00000000)
@@ -415,7 +425,8 @@ def main():
         helperText()
         return
     if sys.argv[1].endswith(".bin"):
-        rawFile = open(sys.argv[1], "rb").read()
+        with open(sys.argv[1], "rb") as file:
+            rawFile = file.read()
         fileWords = array.array("I", rawFile)
         sections = readHeader(fileWords)
         filename = parseSummary(sections[0])
