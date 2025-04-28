@@ -1658,7 +1658,7 @@ class floatArrayOpenInstruction(parentArrayOpenInstruction):
             yield repr(value)
         
     def writeToKsm(self, section: object):
-        super().writeToKsm()
+        super().writeToKsm(section)
         for value in self.array.values:
             section.words.frombytes(pack("f", value))
         arrayCloseInstruction().writeToKsm(section)
@@ -2424,7 +2424,7 @@ class boolArrayOpenInstruction(parentArrayOpenInstruction):
                 yield "true" if newVal else "false"
             
     def writeToKsm(self, section: object):
-        super().writeToKsm()
+        super().writeToKsm(section)
         valuesModLength = len(self.array.values) % 4
         valuesPadLength = 4 - valuesModLength if valuesModLength != 0 else 0
         values = self.array.values + ([0] * valuesModLength)
