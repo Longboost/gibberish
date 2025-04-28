@@ -111,7 +111,7 @@ def parseIDTest():
             resetVariableDict()
             fullFileName = f"{root}\\{fileName}"
             rawFile = open(fullFileName, "rb").read()
-            fileWords = array.array("L", rawFile)
+            fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
                 parseFunctionDefinitions(sections[1], versionRaw)
@@ -149,7 +149,7 @@ def parseIDTest2():
             resetVariableDict()
             fullFileName = f"{root}\\{fileName}"
             rawFile = open(fullFileName, "rb").read()
-            fileWords = array.array("L", rawFile)
+            fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
                 parseFunctionDefinitions(sections[1], versionRaw)
@@ -195,7 +195,7 @@ def parseFindInstruction(path: str, targetInstructionID: int):
             setTargetInstructionFound(False)
             fullFileName = f"{root}\\{fileName}"
             rawFile = open(fullFileName, "rb").read()
-            fileWords = array.array("L", rawFile)
+            fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
                 parseFunctionDefinitions(sections[1], versionRaw)
@@ -227,7 +227,7 @@ def parseFindAllInstructions(path: str):
             resetFoundInstructionsSet()
             fullFileName = f"{root}\\{fileName}"
             rawFile = open(fullFileName, "rb").read()
-            fileWords = array.array("L", rawFile)
+            fileWords = array.array("I", rawFile)
             try:
                 sections = readHeader(fileWords)
                 parseFunctionDefinitions(sections[1], versionRaw)
@@ -416,7 +416,7 @@ def main():
         return
     if sys.argv[1].endswith(".bin"):
         rawFile = open(sys.argv[1], "rb").read()
-        fileWords = array.array("L", rawFile)
+        fileWords = array.array("I", rawFile)
         sections = readHeader(fileWords)
         filename = parseSummary(sections[0])
         parseFunctionDefinitions(sections[1], versionRaw)
@@ -452,7 +452,7 @@ def main():
         #print("\n".join(f"{value}" for value in definedVariables.values()))
         #print([f.name for f in definedFunctions.values()])
         #print([f.isPublic for f in definedFunctions.values()])
-        sections = [fileSection(0, array.array("L")) for sectionCount in range(9)]
+        sections = [fileSection(0, array.array("I")) for sectionCount in range(9)]
         buildInstructionSection(sections[7], instructionList)
         buildSummarySection(sections[0], importCount, allowDisableExpression)
         buildFunctionDefinitionsSection(sections[1], definedFunctions)

@@ -1640,7 +1640,7 @@ class intArrayOpenInstruction(parentArrayOpenInstruction):
                 yield repr(currentWord.value)
     
     def writeToKsm(self, section: object):
-        super().writeToKsm()
+        super().writeToKsm(section)
         for value in self.array.values:
             section.words.append(value)
         arrayCloseInstruction().writeToKsm(section)
