@@ -813,14 +813,17 @@ class ifEqualInstruction(parentInstruction):
         assert file.term == '('
         file.getNextTerm()
         self.valueX = expression()
-        self.valueX.readFromCpp(file, thisData)
+        self.valueX.readFromCpp(file, thisData, ',')
         assert len(self.valueX.instructions) == 1
         self.valueX = self.valueX.instructions[0]
         file.getNextTerm()
         self.valueY = expression()
-        self.valueY.readFromCpp(file, thisData)
+        self.valueY.readFromCpp(file, thisData, ')')
         assert len(self.valueY.instructions) == 1
         self.valueY = self.valueY.instructions[0]
+        file.getNextTerm()
+        assert file.term == '{'
+        file.allowGetNextLine(False, False)
     
     def writeToKsm(self, section: object):
         super().writeToKsm(section)
@@ -1446,6 +1449,8 @@ class unidentified57Instruction(parentInstruction):
         assert len(self.variable.instructions) == 1
         self.variable = self.variable.instructions[0]
         
+        file.getNextTerm()
+        
         self.value = expression()
         self.value.readFromCpp(file, thisData, ')')
         assert len(self.value.instructions) == 1
@@ -1485,6 +1490,8 @@ class unidentified5bInstruction(parentInstruction):
         self.variable.readFromCpp(file, thisData, ',')
         assert len(self.variable.instructions) == 1
         self.variable = self.variable.instructions[0]
+        
+        file.getNextTerm()
         
         self.value = expression()
         self.value.readFromCpp(file, thisData, ')')
@@ -3075,9 +3082,9 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
             case '<':
                 return ifLessThanInstruction()
             case '>=':
-                return ifLessThanInstruction()
+                return ifGreaterThanOrEqualInstruction()
             case '<=':
-                return ifLessThanInstruction()
+                return ifLessThanOrEqualInstruction()
             case _:
                 return ifInstruction()
     if terms[0] == '}' and isinstance(thisData.bracesTree[-1], (ifInstruction, ifEqualInstruction, elseIfInstruction, elseInstruction)):
