@@ -1423,11 +1423,12 @@ class operatorInstruction(parentInstruction):
 
 ...
 
-#0x57
-#Unidentified
-class unidentified57Instruction(parentInstruction):
+#[parent]
+#Operators - resulting value is set directly to the variable in the first argument.
+class operatorFunctionInstruction(parentInstruction):
+    name = None
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
-        return f"unidentified_57({self.variable.writeToCpp(indentLevel)[0]}, {self.value.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
+        return f"{self.name}({self.variable.writeToCpp(indentLevel)[0]}, {self.value.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
     
     def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
         assert not self.disableExpression
@@ -1439,7 +1440,7 @@ class unidentified57Instruction(parentInstruction):
         self.value.readFromKsm(wordsEnumerated, currentWord)
     
     def readFromCpp(self, file: object, thisData: object):
-        assert file.term == "unidentified_57"
+        assert file.term == self.name
         file.getNextTerm()
         assert file.term == '('
         file.getNextTerm()
@@ -1463,47 +1464,65 @@ class unidentified57Instruction(parentInstruction):
         self.variable.writeToKsm(section)
         self.value.writeToKsm(section)
 
-...
+#0x57
+#Add
+class addInstruction(operatorFunctionInstruction):
+    name = "add"
+
+#0x58
+#Subtract
+class subtractInstruction(operatorFunctionInstruction):
+    name = "subtract"
+
+#0x59
+#Multiply
+class multiplyInstruction(operatorFunctionInstruction):
+    name = "multiply"
+
+#0x5a
+#Divide
+class divideInstruction(operatorFunctionInstruction):
+    name = "divide"
 
 #0x5b
-#Unidentified - Modulo in place?
-class unidentified5bInstruction(parentInstruction):
-    def writeToCpp(self, indentLevel: int) -> (str, int, int):
-        return f"unidentified_5b({self.variable.writeToCpp(indentLevel)[0]}, {self.value.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
-    
-    def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
-        assert not self.disableExpression
-        getNextWord(wordsEnumerated, currentWord)
-        self.variable = matchInstruction(currentWord.value, True)(currentWord.value, False)
-        self.variable.readFromKsm(wordsEnumerated, currentWord)
-        getNextWord(wordsEnumerated, currentWord)
-        self.value = matchInstruction(currentWord.value, True)(currentWord.value, False)
-        self.value.readFromKsm(wordsEnumerated, currentWord)
-    
-    def readFromCpp(self, file: object, thisData: object):
-        assert file.term == "unidentified_5b"
-        file.getNextTerm()
-        assert file.term == '('
-        file.getNextTerm()
-        
-        self.variable = expression()
-        self.variable.readFromCpp(file, thisData, ',')
-        assert len(self.variable.instructions) == 1
-        self.variable = self.variable.instructions[0]
-        
-        file.getNextTerm()
-        
-        self.value = expression()
-        self.value.readFromCpp(file, thisData, ')')
-        assert len(self.value.instructions) == 1
-        self.value = self.value.instructions[0]
-        
-        file.allowGetNextLine(True, True)
-    
-    def writeToKsm(self, section: object):
-        super().writeToKsm(section)
-        self.variable.writeToKsm(section)
-        self.value.writeToKsm(section)
+#Modulo
+class moduloInstruction(operatorFunctionInstruction):
+    name = "modulo"
+
+#0x5d
+#Logical OR
+class logicalOrInstruction(operatorFunctionInstruction):
+    name = "logical_or"
+
+#0x5d
+#Logical AND
+class logicalAndInstruction(operatorFunctionInstruction):
+    name = "logical_and"
+
+#0x5e
+#Bitwise OR
+class bitwiseOrInstruction(operatorFunctionInstruction):
+    name = "bitwise_or"
+
+#0x5f
+#Bitwise AND
+class bitwiseAndInstruction(operatorFunctionInstruction):
+    name = "bitwise_and"
+
+#0x60
+#Bitwise XOR
+class bitwiseExclusiveOrInstruction(operatorFunctionInstruction):
+    name = "bitwise_xor"
+
+#0x61
+#Bit Shift Left
+class bitShiftLeftInstruction(operatorFunctionInstruction):
+    name = "bitshift_left"
+
+#0x62
+#Bit Shift Right
+class bitShiftRightInstruction(operatorFunctionInstruction):
+    name = "bitshift_right"
 
 ...
 
@@ -2794,13 +2813,18 @@ instructionDict = {
     #...
     #operators are in this gap here
     #...
-    0x57: unidentified57Instruction,
-    
-    0x5b: unidentified5bInstruction,
-    #0x5c not found
-    #0x5d not found
-    
-    #0x62 not found
+    0x57: addInstruction,
+    0x58: subtractInstruction,
+    0x59: multiplyInstruction,
+    0x5a: divideInstruction,
+    0x5b: moduloInstruction,
+    0x5c: logicalOrInstruction,
+    0x5d: logicalAndInstruction,
+    0x5e: bitwiseOrInstruction,
+    0x5f: bitwiseAndInstruction,
+    0x60: bitwiseExclusiveOrInstruction,
+    0x61: bitShiftLeftInstruction,
+    0x62: bitShiftRightInstruction,
     0x63: variableArrayOpenInstruction,
     0x64: intArrayOpenInstruction,
     0x65: floatArrayOpenInstruction,
@@ -3136,10 +3160,33 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
     if terms[0] == '}' and isinstance(thisData.bracesTree[-1], whileInstruction):
         return endWhileInstruction()
     
-    if terms[0] == "unidentified_57":
-        return unidentified57Instruction()
-    if terms[0] == "unidentified_5b":
-        return unidentified5bInstruction()
+    match terms[0]:
+        case "add":
+            return addInstruction()
+        case "subtract":
+            return subtractInstruction()
+        case "multiply":
+            return multiplyInstruction()
+        case "divide":
+            return divideInstruction()
+        case "modulo":
+            return moduloInstruction()
+        case "logical_or":
+            return logicalOrInstruction()
+        case "logical_and":
+            return logicalAndInstruction()
+        case "bitwise_or":
+            return bitwiseOrInstruction()
+        case "bitwise_and":
+            return bitwiseAndInstruction()
+        case "bitwise_xor":
+            return bitwiseExclusiveOrInstruction()
+        case "bitshift_left":
+            return bitShiftLeftInstruction()
+        case "bitshift_right":
+            return bitShiftRightInstruction()
+        case _:
+            pass
     
     if terms[0] == "var_array":
         return variableArrayOpenInstruction()
