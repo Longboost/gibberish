@@ -67,7 +67,7 @@ class iterableFile:
         
         readingOperator = isOperatorChar(term:= self.line[0])
         if readingOperator:
-            if (doubleterm:= self.line[:2]) in ('++', '--', '->', '==', '!=', '>=', '<=', '&&', '||'):
+            if (doubleterm:= self.line[:2]) in ('++', '--', '->', '==', '!=', '>=', '<=', '&&', '||', '>>', '<<'):
                 self.term = doubleterm
                 self.line = self.line[2:]
             else:
