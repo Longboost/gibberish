@@ -49,7 +49,7 @@ class compilationData:
 
     def generateVariableInstruction(self, variableDefinition: variable) -> variableInstruction:
         jumpInToAddFlag = (variableDefinition.scope == variableScope.tempVar and variableDefinition.dataTypeString == "ref")
-        if variableDefinition.dataTypeString == "globalflag" and (variableDefinition.name not in self.localDefinedGlobalFlagsTree[-1] or variableDefinition.name[:2] == "as"):
+        if variableDefinition.dataTypeString == "user" and (variableDefinition.name not in self.localDefinedGlobalFlagsTree[-1] or variableDefinition.name[:2] in "as"):
             if variableDefinition.name[:2] != "as":
                 self.localDefinedGlobalFlagsTree[-1][variableDefinition.name] = variableDefinition
             if variableDefinition.identifier is not None:

@@ -1157,7 +1157,9 @@ class caseRangeInstruction(caseInstruction):
     
     def readFromCpp(self, file: object, thisData: object):
         self.pairedInstruction = thisData.bracesTree[-1]
-        thisData.bracesTree[-1] = self
+        if not isinstance(thisData.bracesTree[-1], switchInstruction):
+            thisData.bracesTree.pop(-1)
+        thisData.bracesTree.append(self)
         assert file.term == "case"
         file.getNextTerm()
         self.lowerBound = expression()
@@ -1170,7 +1172,7 @@ class caseRangeInstruction(caseInstruction):
         assert len(self.upperBound.instructions) == 1
         self.upperBound = self.upperBound.instructions[0]
         
-        self.allowGetNextLine(False, False)
+        file.allowGetNextLine(False, False)
     
     def writeToKsm(self, section: object):
         if self.pairedInstruction is not None:
@@ -1203,7 +1205,9 @@ class caseDefaultInstruction(caseInstruction):
     
     def readFromCpp(self, file: object, thisData: object):
         self.pairedInstruction = thisData.bracesTree[-1]
-        thisData.bracesTree[-1] = self
+        if not isinstance(thisData.bracesTree[-1], switchInstruction):
+            thisData.bracesTree.pop(-1)
+        thisData.bracesTree.append(self)
         assert file.term == "default"
         file.getNextTerm()
         assert file.term == ':'
@@ -1733,6 +1737,8 @@ class intArrayOpenInstruction(parentArrayOpenInstruction):
     def writeToKsm(self, section: object):
         super().writeToKsm(section)
         for value in self.array.values:
+            if value < 0:
+                value += 0x100000000
             section.words.append(value)
         arrayCloseInstruction().writeToKsm(section)
 
@@ -1993,6 +1999,7 @@ class arrayAssignmentInstruction(parentArrayInstruction):
     
     def readFromCpp(self, file: object, thisData: object):
         self.readArrayFromCpp(file, thisData, '[')
+        file.getNextTerm()
         self.index = expression()
         self.index.readFromCpp(file, thisData, ']')
         assert len(self.index.instructions) == 1
@@ -2001,7 +2008,7 @@ class arrayAssignmentInstruction(parentArrayInstruction):
         assert file.term == '='
         file.getNextTerm()
         self.variable = expression()
-        self.variable.readFromCpp(file, thisData, ']')
+        self.variable.readFromCpp(file, thisData, ';')
         assert len(self.variable.instructions) == 1
         self.variable = self.variable.instructions[0]
         file.allowGetNextLine(True, True)
