@@ -132,6 +132,16 @@ class unknownInstruction(parentInstruction):
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
         return f"?{hex(self.instructionID)};\n", indentLevel, 0
 
+#0x00
+#Null - dead file space
+class nullInstruction(parentInstruction):
+    def writeToCpp(self, indentLevel: int) -> (str, int, int):
+        return "null;\n", indentLevel, 0
+    
+    def readFromCpp(self, file: object, thisData: object):
+        file.allowGetNextLine(True, True)
+    
+
 #0x01
 #End File - marks the end of the file
 class endFileInstruction(unknownInstruction):
@@ -654,7 +664,53 @@ class deleteVariableInstruction(parentInstruction):
         super().writeToKsm(section)
         self.variable.writeToKsm(section)
 
-...
+#0x13
+#Unidentified
+class unidentified13Instruction(parentInstruction):
+    def writeToCpp(self, indentLevel: int) -> (str, int, int):
+        return f"unidentified_13 {self.variable.writeToCpp(indentLevel)[0]};\n", indentLevel, 0
+    
+    def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
+        assert not self.disableExpression
+        getNextWord(wordsEnumerated, currentWord)
+        self.variable = matchInstruction(currentWord.value)(currentWord.value, False)
+
+    def readFromCpp(self, file: object, thisData: object):
+        assert file.term == "unidentified_13"
+        file.getNextTerm()
+        self.variable = expression()
+        self.variable.readFromCpp(file, thisData, ';')
+        assert len(self.variable.instructions) == 1
+        self.variable = self.variable.instructions[0]
+        file.allowGetNextLine(True, True)
+    
+    def writeToKsm(self, section: object):
+        super().writeToKsm(section)
+        self.variable.writeToKsm(section)
+
+#0x14
+#Unidentified
+class unidentified14Instruction(parentInstruction):
+    def writeToCpp(self, indentLevel: int) -> (str, int, int):
+        return f"unidentified_14 {self.variable.writeToCpp(indentLevel)[0]};\n", indentLevel, 0
+    
+    def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
+        assert not self.disableExpression
+        getNextWord(wordsEnumerated, currentWord)
+        self.variable = matchInstruction(currentWord.value)(currentWord.value, False)
+
+    def readFromCpp(self, file: object, thisData: object):
+        assert file.term == "unidentified_14"
+        file.getNextTerm()
+        self.variable = expression()
+        self.variable.readFromCpp(file, thisData, ';')
+        assert len(self.variable.instructions) == 1
+        self.variable = self.variable.instructions[0]
+        file.allowGetNextLine(True, True)
+    
+    def writeToKsm(self, section: object):
+        super().writeToKsm(section)
+        self.variable.writeToKsm(section)
 
 #0x15
 #Is Child Thread Incomplete - Returns whether a given child thread is *not* done running.
@@ -1350,6 +1406,11 @@ class assignmentInstruction(parentInstruction):
             thisData.allowDisableExpression = True
             file.getNextTerm()
             delimiter = file.term
+        if delimiter in ('++', '--'):
+            self.value = expression()
+            self.value.instructions = [operatorInstruction(invertedOperatorDict[delimiter])]
+            file.allowGetNextLine(True, True)
+            return
         if delimiter != '=':
             self.value = expression()
             self.value.instructions = list()
@@ -2318,7 +2379,7 @@ class formatStringInstruction(parentInstruction):
 ...
 
 #0x8b
-#Assign 1 Array Entries
+#Assign 1 Array Entry
 class arrayAssign1Instruction(arrayCopy1Instruction):
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
         return f"array_assign_1({self.array.writeToCpp(indentLevel)[0]}, {self.index.writeToCpp(indentLevel)[0]}, {self.variable.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
@@ -2419,6 +2480,33 @@ class variableReferenceArrayAssignmentInstruction(arrayAssignmentInstruction):
         self.writeArrayReferenceToKsm(section)
 
 #0x94
+#Assign 1 Array Entry (variable referencing table)
+class variableReferenceArrayAssign1Instruction(arrayAssign1Instruction):
+    def readArrayFromCpp(self, file: object, thisData: object, delimiter: str | tuple[str]):
+        self.readArrayReferenceFromCpp(file, thisData, delimiter)
+    
+    def writeArrayToKsm(self, section: object):
+        self.writeArrayReferenceToKsm(section)
+
+#0x95
+#Assign 2 Array Entry (variable referencing table)
+class variableReferenceArrayAssign2Instruction(arrayAssign2Instruction):
+    def readArrayFromCpp(self, file: object, thisData: object, delimiter: str | tuple[str]):
+        self.readArrayReferenceFromCpp(file, thisData, delimiter)
+    
+    def writeArrayToKsm(self, section: object):
+        self.writeArrayReferenceToKsm(section)
+
+#0x96
+#Assign 3 Array Entry (variable referencing table)
+class variableReferenceArrayAssign3Instruction(arrayAssign3Instruction):
+    def readArrayFromCpp(self, file: object, thisData: object, delimiter: str | tuple[str]):
+        self.readArrayReferenceFromCpp(file, thisData, delimiter)
+    
+    def writeArrayToKsm(self, section: object):
+        self.writeArrayReferenceToKsm(section)
+
+#0x97
 #Array Get Index (variable referencing table)
 class variableReferenceArrayGetIndexInstruction(arrayGetIndexInstruction):
     def readArrayFromCpp(self, file: object, thisData: object, delimiter: str | tuple[str]):
@@ -2426,8 +2514,6 @@ class variableReferenceArrayGetIndexInstruction(arrayGetIndexInstruction):
     
     def writeArrayToKsm(self, section: object):
         self.writeArrayReferenceToKsm(section)
-
-...
 
 #0x98
 #Boolean Array Open
@@ -2746,7 +2832,7 @@ def readPotentialExpression(wordsEnumerated: enumerate[int], currentWord: object
 
 
 instructionDict = {
-    
+    0x00: nullInstruction,
     0x01: endFileInstruction,
     0x02: noopInstruction,
     0x03: returnInstruction,
@@ -2765,7 +2851,8 @@ instructionDict = {
     #0x10 not found
     0x11: closeCallArgumentsInstruction,
     0x12: deleteVariableInstruction,
-    
+    0x13: unidentified13Instruction,
+    0x14: unidentified14Instruction,
     0x15: isChildThreadIncompleteInstruction,
     0x16: sleepFramesInstruction,
     0x17: sleepMillisecondsInstruction,
@@ -2874,10 +2961,10 @@ instructionDict = {
     0x91: variableReferenceArrayCopy2Instruction,
     0x92: variableReferenceArrayCopy3Instruction,
     0x93: variableReferenceArrayAssignmentInstruction,
-    0x94: variableReferenceArrayGetIndexInstruction,
-    #0x95 not found
-    
-    #0x97 not found
+    0x94: variableReferenceArrayAssign1Instruction, # |  TODO: Test these instructions,
+    0x95: variableReferenceArrayAssign2Instruction, # |        to see if they're what
+    0x96: variableReferenceArrayAssign3Instruction, # |        I'm assuming they are.
+    0x97: variableReferenceArrayGetIndexInstruction,# |
     0x98: boolArrayOpenInstruction,
     #0x99 not found
     #0x9a not found
@@ -2925,7 +3012,7 @@ operatorDict = {
 invertedOperatorDict = {value: key for key, value in operatorDict.items()}
 
 instructionDictAlt = {
-    
+    0x00: nullInstruction,   
     0x01: endFileInstruction,
     0x02: noopInstruction,
     0x03: returnInstruction,
@@ -3059,6 +3146,8 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
     
     nameIsVar = lambda term: term in thisData.definedVariables or (thisData.localDefinedVariablesTree and term in thisData.localDefinedVariablesTree[-1])
     
+    if terms[0] == "null":
+        return nullInstruction()
     if terms[0] == "noop":
         return noopInstruction()
     if terms[0] == "return":
@@ -3089,6 +3178,10 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
             return threadCallChildInstruction()
     if terms[0] == "delete":
         return deleteVariableInstruction()
+    if terms[0] == "unidentified_13":
+        return unidentified13Instruction()
+    if terms[0] == "unidentified_14":
+        return unidentified14Instruction()
     if terms[0] == "is_incomplete":
         return isChildThreadIncompleteInstruction()
     if terms[0] == "sleep_frames":
@@ -3241,11 +3334,11 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
         return formatStringInstruction()
     
     if terms[0] == "array_assign_1":
-        return arrayAssign1Instruction()
+        return arrayAssign1Instruction() if isArray(terms[2]) else variableReferenceArrayAssign1Instruction()
     if terms[0] == "array_assign_2":
-        return arrayAssign2Instruction()
+        return arrayAssign2Instruction() if isArray(terms[2]) else variableReferenceArrayAssign2Instruction()
     if terms[0] == "array_assign_3":
-        return arrayAssign3Instruction()
+        return arrayAssign3Instruction() if isArray(terms[2]) else variableReferenceArrayAssign3Instruction()
     
     if terms[0] == "type":
         return getDataTypeInstruction()
