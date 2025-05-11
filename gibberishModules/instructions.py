@@ -1407,8 +1407,12 @@ class assignmentInstruction(parentInstruction):
             file.getNextTerm()
             delimiter = file.term
         if delimiter in ('++', '--'):
-            self.value = expression()
-            self.value.instructions = [operatorInstruction(invertedOperatorDict[delimiter])]
+            self.value = operatorInstruction(invertedOperatorDict[delimiter])
+            if not self.disableExpression:
+                temp = self.value
+                self.value = expression()
+                self.value.instructions = [temp]
+                del temp
             file.allowGetNextLine(True, True)
             return
         if delimiter != '=':
