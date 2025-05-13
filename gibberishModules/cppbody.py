@@ -191,4 +191,4 @@ def parseCppBodyFile(fileLines: list[str], definedImports: dict[str, importDefin
     
     thisData.instructionList.append(endFileInstruction())
     
-    return thisData.instructionList, thisData.definedFunctions, thisData.usedIdentifierSlots, thisData.usedImportSlots, thisData.importCount, thisData.allowDisableExpression
+    return thisData.instructionList, thisData.definedFunctions, thisData.usedIdentifierSlots, thisData.usedImportSlots, thisData.importCount, thisData.allowDisableExpression, thisData.definedGlobalArrays

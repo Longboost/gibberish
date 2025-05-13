@@ -354,7 +354,7 @@ def buildVariableDefinitionSection(section: fileSection, usedIdentifierSlots: li
             section.itemCount += 1
             buildVariableDefinition(section, thisVariable)
 
-def buildArrayDefinitionSection(section: fileSection, usedIdentifierSlots: list):
+def buildArrayDefinitionSection(section: fileSection, definedGlobalArrays: dict):
     dataTypeBack = {
         arrayDataType.Variable: 0,
         arrayDataType.Int: 1,
@@ -362,15 +362,14 @@ def buildArrayDefinitionSection(section: fileSection, usedIdentifierSlots: list)
         arrayDataType.Bool: 3
     }
     
-    for thisArray in usedIdentifierSlots[::-1]:
-        if isinstance(thisArray, arrayDefinition):
-            section.itemCount += 1
-            section.words.append(0xffffffff)
-            section.words.append(thisArray.identifier)
-            section.words.append(dataTypeBack[thisArray.dataType])
-            section.words.append(thisArray.length)
-            section.words.append(thisArray.address)
-            writeStringToKsm(section, thisArray.name)
+    for thisArray in definedGlobalArrays.values():
+        section.itemCount += 1
+        section.words.append(0xffffffff)
+        section.words.append(thisArray.identifier)
+        section.words.append(dataTypeBack[thisArray.dataType])
+        section.words.append(thisArray.length)
+        section.words.append(thisArray.address)
+        writeStringToKsm(section, thisArray.name)
 
 def buildImportDefinitionSection(section: fileSection, usedImportSlots: list):
     section.itemCount = len(usedImportSlots)
@@ -457,7 +456,7 @@ def main():
         definedImports, definedVariables, identifierSlotOffset = parseCppHeaderFile(fileText)
         
         fileText = open(fileName, "r", encoding = "utf-8").readlines()
-        instructionList, definedFunctions, usedIdentifierSlots, usedImportSlots, importCount, allowDisableExpression = parseCppBodyFile(fileText, definedImports, definedVariables, identifierSlotOffset)
+        instructionList, definedFunctions, usedIdentifierSlots, usedImportSlots, importCount, allowDisableExpression, definedGlobalArrays = parseCppBodyFile(fileText, definedImports, definedVariables, identifierSlotOffset)
         
         #print(definedImports.keys())
         #print("\n".join(f"{value}" for value in definedVariables.values()))
@@ -468,7 +467,7 @@ def main():
         buildSummarySection(sections[0], importCount, allowDisableExpression)
         buildFunctionDefinitionsSection(sections[1], definedFunctions)
         buildVariableDefinitionSection(sections[2], usedIdentifierSlots, variableScope.static)
-        buildArrayDefinitionSection(sections[3], usedIdentifierSlots)
+        buildArrayDefinitionSection(sections[3], definedGlobalArrays)
         buildVariableDefinitionSection(sections[4], usedIdentifierSlots, variableScope.const)
         buildImportDefinitionSection(sections[5], usedImportSlots)
         buildVariableDefinitionSection(sections[6], usedIdentifierSlots, variableScope.Global)
