@@ -24,14 +24,14 @@ class compilationData:
     identifierSlotOffset: int
     declaredLabelStack: list[dict[str, int]]
     allowDisableExpression: bool
-    definedGlobalArrays: dict[str, arrayDefinition]
+    definedGlobalArrays: OrderedDict[str, arrayDefinition]
     localDefinedArraysTree: list[dict[str, arrayDefinition]]
     localDefinedGlobalFlagsTree : list[dict[str, variable]]
     
     def handleVariable(self, newVariable: variable, treeIndex: int = -1) -> variable:
         if (match := self.definedVariables.get(newVariable.name, None)) is not None:
             return match
-        if (match := self.localDefinedVariablesTree[treeIndex].get(newVariable.name, None)) is not None:
+        if self.localDefinedVariablesTree and (match := self.localDefinedVariablesTree[treeIndex].get(newVariable.name, None)) is not None:
             return match
         if newVariable.scope in (variableScope.localVar, variableScope.tempVar):
             if newVariable.dataTypeString is None:
@@ -49,8 +49,8 @@ class compilationData:
 
     def generateVariableInstruction(self, variableDefinition: variable) -> variableInstruction:
         jumpInToAddFlag = (variableDefinition.scope == variableScope.tempVar and variableDefinition.dataTypeString == "ref")
-        if variableDefinition.dataTypeString == "user" and (variableDefinition.name not in self.localDefinedGlobalFlagsTree[-1] or variableDefinition.name[:2] in "as"):
-            if variableDefinition.name[:2] != "as":
+        if variableDefinition.dataTypeString == "user" and ((not self.localDefinedGlobalFlagsTree) or (variableDefinition.name not in self.localDefinedGlobalFlagsTree[-1] or variableDefinition.name[:2] == "as")):
+            if variableDefinition.name[:2] != "as" and self.localDefinedGlobalFlagsTree:
                 self.localDefinedGlobalFlagsTree[-1][variableDefinition.name] = variableDefinition
             if variableDefinition.identifier is not None:
                 variableDefinition = copy(variableDefinition)

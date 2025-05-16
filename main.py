@@ -280,7 +280,7 @@ def buildVariableDefinition(section: fileSection, thisVariable: variable):
         case variableScope.static:
             if thisVariable.dataTypeString == "user":
                 flags |= 0x08000000
-            else:
+            elif thisVariable.dataTypeString != "func":
                 flags |= 0x02000000
         case variableScope.const:
             flags |= 0x04000000
@@ -362,7 +362,7 @@ def buildArrayDefinitionSection(section: fileSection, definedGlobalArrays: dict)
         arrayDataType.Bool: 3
     }
     
-    for thisArray in definedGlobalArrays.values():
+    for thisArray in list(definedGlobalArrays.values())[::-1]:
         section.itemCount += 1
         section.words.append(0xffffffff)
         section.words.append(thisArray.identifier)

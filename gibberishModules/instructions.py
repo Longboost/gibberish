@@ -99,6 +99,10 @@ class expression:
                 tempRefVar = variable(matchedArray.name, None, matchedArray.name, None, variableScope.static, "func")
                 return thisData.generateVariableInstruction(tempRefVar)
             
+            if (matchedFunction := thisData.definedFunctions.get(file.term)) is not None:
+                tempRefVar = variable(matchedFunction.name, None, matchedFunction.name, None, variableScope.static, "func")
+                return thisData.generateVariableInstruction(tempRefVar)
+            
             matchedVariable = file.readVariable()
             matchedVariable = thisData.handleVariable(matchedVariable)
             return thisData.generateVariableInstruction(matchedVariable)
@@ -309,7 +313,7 @@ class openFunctionInstruction(parentInstruction):
             while delimiter != ')':
                 newArgument = expression()
                 delimiter = newArgument.readFromCpp(file, thisData, ',)')
-                assert len(newArgument.instructions) == 1
+                assert len(newArgument.instructions) == 1, file.index + 1
                 newArgument = newArgument.instructions[0]
                 self.arguments.append(newArgument)
                 file.allowGetNextLine(False, False)
@@ -356,6 +360,7 @@ class openThreadInstruction(parentInstruction):
         linkedFunctionDefinition = functionDefinitionDictGet(currentWord.value)
         if not linkedFunctionDefinition is None:
             self.name = linkedFunctionDefinition.name[:-9]
+            self.name = self.name if self.name else "_"
         
         if not linkedFunctionDefinition.specialLabel is None:
             self.specialLabelAlias = linkedFunctionDefinition.specialLabel.alias
@@ -390,7 +395,7 @@ class openThreadInstruction(parentInstruction):
         thisData.declaredLabelStack.append(dict())
         assert file.term in ("thread", "childthread")
         file.getNextTerm()
-        name = file.term
+        name = file.term if file.term != "_" else ""
         identifier = len(thisData.usedIdentifierSlots) + thisData.identifierSlotOffset
         name = f"{name}_{hex(identifier | 0x3e000000)[2:]}"
         self.function = functionDefinition(name, identifier, False, [False] * 32, None, None, None, dict(), None, dict(), dict(), list(), None, None, None)
@@ -566,7 +571,7 @@ class callInstruction(parentInstruction):
                 self.arguments.append(newArgument)
     
     def readFromCpp(self, file: object, thisData: object, disableLineEnd: bool = False):
-        name = file.term
+        name = self.name = file.term
         if (match:= thisData.definedImports.get(name, None)) is not None:
             if not match in thisData.usedImportSlots:
                 thisData.usedImportSlots.append(match)
@@ -605,6 +610,7 @@ class callInstruction(parentInstruction):
             file.allowGetNextLine(True, True)
         
     def writeToKsm(self, section: object):
+        assert self.match.identifier is not None, self.name
         super().writeToKsm(section)
         section.words.append(self.match.identifier)
         for argument in self.arguments:
@@ -862,6 +868,7 @@ class ifEqualInstruction(parentInstruction):
         getNextWord(wordsEnumerated, currentWord)
     
     def readFromCpp(self, file: object, thisData: object):
+        thisData.bracesTree.append(self)
         assert file.term == "if"
         file.getNextTerm()
         assert file.term == self.operator
@@ -885,6 +892,11 @@ class ifEqualInstruction(parentInstruction):
         super().writeToKsm(section)
         self.valueX.writeToKsm(section)
         self.valueY.writeToKsm(section)
+        self.writeToAddress = len(section.words)
+        section.words.append(0)
+    
+    def writeToKsmAfter(self, section: object):
+        section.words[self.writeToAddress] = self.jumpOffset
 
 #0x1a
 #If Not Equal - OBSOLETE, use if instead.
@@ -2199,7 +2211,6 @@ class variableCallInstruction(callInstruction):
         self.variable.readFromCpp(file, thisData, '*(')
         assert len(self.variable.instructions) == 1
         self.variable = self.variable.instructions[0]
-        file.getNextTerm()
         if file.term == '*':
             self.disableExpression = True
             thisData.allowDisableExpression = True
@@ -2760,7 +2771,7 @@ class variableInstruction(parentInstruction):
                 prefixTxt += "ref "
             if not self.scope in (variableScope.tempVar, variableScope.localVar, variableScope.tempStaticVar):
                 prefixTxt += f"{self.dataTypeString} "
-        elif self.isVariableDef and self.dataTypeString == "func" and self.function is not None and arrayDefinitionDictByNameGet(self.name, self.function) is None:
+        elif self.isVariableDef and self.dataTypeString == "func" and arrayDefinitionDictByNameGet(self.name, self.function) is None:
             prefixTxt += f"{self.dataTypeString} "
         
         if not self.name is None:
@@ -3143,9 +3154,14 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
     undirtyLine = file.line
     if aligned:
         undirtyTerm = file.term
+        terms = [file.term]
         terms = [file.term] + [(file.getNextTerm(), file.term)[-1] for _ in range(4)]
     else:
-        terms = [(file.getNextTerm(), file.term)[-1] for _ in range(5)]
+        terms = []
+    while (file.getNextTerm(), file.term)[-1] is not None:
+        terms.append(file.term)
+    if len(terms) < 5:
+        terms += [None] * (5 - len(terms))
     file.line = undirtyLine
     if aligned:
         file.term = undirtyTerm
@@ -3362,10 +3378,21 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
     if terms[1] == ':':
         return labelInstruction()
     
-    if (terms[1] == '(' or (terms[1] == '*' and terms[2] == '(')) and not isOperatorChar(terms[0]):
+    if (terms[1] == '(' or (isDisableExpression := terms[1] == '*' and terms[2] == '(')) and not isOperatorChar(terms[0]):
         if nameIsVar(terms[0]):
-            return variableCallInstruction()
-        return callInstruction()
+            if isDisableExpression:
+                for term in terms[3:]:
+                    if isOperatorChar(term) and term != ',':
+                        #the test has failed, 
+                        #so this must be an case where we have for example:
+                        #var1 = var2 * (var3 + 2);
+                        break
+                else:
+                    return variableCallInstruction()
+            else:
+                return variableCallInstruction()
+        else:
+            return callInstruction()
     
     if '=' in terms:
         valuePos = terms.index('=') + 1
