@@ -108,13 +108,18 @@ class expression:
             return thisData.generateVariableInstruction(matchedVariable)
         
         self.instructions = list()
+        depth = 0
         while not (
                 (file.term is None and (';' in exitingCharacters or '{' in exitingCharacters)) or
-                file.term in exitingCharacters
+                (file.term in exitingCharacters and depth <= 0)
                 ):
             if type(newInstruction := identifyInstructionFromCpp(file, thisData, True)) == callInstruction:
                 newInstruction.readFromCpp(file, thisData, True)
             else:
+                if ( ')' in exitingCharacters ) and ( file.term == '(' ):
+                    depth += 1
+                if ( depth > 0 ) and ( file.term == ')' ):
+                    depth -= 1
                 newInstruction = readAnyValue()
                 file.getNextTerm()
             self.instructions.append(newInstruction)
@@ -570,7 +575,7 @@ class callInstruction(parentInstruction):
                     break
                 self.arguments.append(newArgument)
     
-    def readFromCpp(self, file: object, thisData: object, disableLineEnd: bool = False):
+    def readFromCpp(self, file: object, thisData: object, disableLineEnd: bool = False, isAssignmentEdgeCase: bool = False):
         name = self.name = file.term
         if (match:= thisData.definedImports.get(name, None)) is not None:
             if not match in thisData.usedImportSlots:
@@ -606,7 +611,10 @@ class callInstruction(parentInstruction):
                     newArgument = newArgument.instructions[0]
                 self.arguments.append(newArgument)
                 file.getNextTerm()
-        if not disableLineEnd:
+        
+        if isAssignmentEdgeCase:
+            return file.allowGetNextLine(True, False)
+        elif not disableLineEnd:
             file.allowGetNextLine(True, True)
         
     def writeToKsm(self, section: object):
@@ -942,8 +950,10 @@ class elseInstruction(parentInstruction):
         self.pairedInstruction = thisData.bracesTree[-1] 
         thisData.bracesTree[-1] = self
         assert file.term == '}'
+        file.allowGetNextLine(False, False)
         file.getNextTerm()
         assert file.term == "else"
+        file.allowGetNextLine(False, False)
         file.getNextTerm()
         assert file.term == '{'
         file.allowGetNextLine(False, False)
@@ -989,10 +999,13 @@ class elseIfInstruction(parentInstruction):
         self.pairedInstruction = thisData.bracesTree[-1]
         thisData.bracesTree[-1] = self
         assert file.term == '}'
+        file.allowGetNextLine(False, False)
         file.getNextTerm()
         assert file.term == "else"
+        file.allowGetNextLine(False, False) # There's no reason for anyone to want to put a line break here, but there's no reason to disallow it, either...
         file.getNextTerm()
         assert file.term == "if"
+        file.allowGetNextLine(False, False)
         file.getNextTerm()
         self.condition = expression()
         self.condition.readFromCpp(file, thisData, '{')
@@ -1440,7 +1453,19 @@ class assignmentInstruction(parentInstruction):
         if not isinstance(match:= identifyInstructionFromCpp(file, thisData), (assignmentInstruction, type(None))):
             self.value = match
             self.gettingNext = True
-            self.value.readFromCpp(file, thisData)
+            #Avoiding using isinstance() here, callInstruction ONLY
+            if ( type(match) is callInstruction ) and not self.disableExpression:
+                if not self.value.readFromCpp(file, thisData, False, True):
+                   self.gettingNext = False
+                   instructionTempStore = self.value
+                   self.value = expression()
+                   self.value.readFromCpp(file, thisData, ';')
+                   self.value.instructions.insert(0, instructionTempStore)
+                   del instructionTempStore
+                   file.allowGetNextLine(True, True)
+                   return
+            else:
+                self.value.readFromCpp(file, thisData)
         else:
             self.value = expression()
             self.value.readFromCpp(file, thisData, ';')
@@ -2263,11 +2288,12 @@ class variableThreadCallChildInstruction(threadCallChildInstruction):
     writeToKsm = variableCallInstruction.writeToKsm
 ...
 
-#0x85
-#Cast to int - takes a value of another datatype, and returns that value as an integer
-class castToIntegerInstruction(parentInstruction):
+#[parent]
+#Cast instruction - takes a value of another datatype, and returns that value as this datatype
+class castInstruction(parentInstruction):
+    name = None
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
-        return f"int({self.value.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
+        return f"{self.name}({self.value.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
     
     def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
         assert not self.disableExpression
@@ -2275,7 +2301,7 @@ class castToIntegerInstruction(parentInstruction):
         self.value = matchInstruction(currentWord.value)(currentWord.value, False)
     
     def readFromCpp(self, file: object, thisData: object):
-        assert file.term == "int"
+        assert file.term == self.name
         file.getNextTerm()
         assert file.term == '('
         file.getNextTerm()
@@ -2289,31 +2315,20 @@ class castToIntegerInstruction(parentInstruction):
         super().writeToKsm(section)
         self.value.writeToKsm(section)
 
+#0x85
+#Cast to int
+class castToIntegerInstruction(castInstruction):
+    name = "int"
+
 #0x86
-#Cast to float - takes a value of another datatype, and returns that value as an floating point value
-class castToFloatingPointInstruction(parentInstruction):
-    def writeToCpp(self, indentLevel: int) -> (str, int, int):
-        return f"float({self.value.writeToCpp(indentLevel)[0]});\n", indentLevel, 0
-    
-    def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
-        assert not self.disableExpression
-        getNextWord(wordsEnumerated, currentWord)
-        self.value = matchInstruction(currentWord.value)(currentWord.value, False)
-    
-    def readFromCpp(self, file: object, thisData: object):
-        assert file.term == "float"
-        file.getNextTerm()
-        assert file.term == '('
-        file.getNextTerm()
-        self.value = expression()
-        self.value.readFromCpp(file, thisData, ')')
-        assert len(self.value.instructions) == 1
-        self.value = self.value.instructions[0]
-        file.allowGetNextLine(True, True)
-    
-    def writeToKsm(self, section: object):
-        super().writeToKsm(section)
-        self.value.writeToKsm(section)
+#Cast to float
+class castToFloatingPointInstruction(castInstruction):
+    name = "float"
+
+#0x8X
+#Cast to string (which instruction ID is this?)
+class castToStringInstruction(castInstruction):
+    name = "string"
 
 ...
 
@@ -3354,6 +3369,8 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
         return castToIntegerInstruction()
     if terms[0] == "float" and terms[1] == '(':
         return castToFloatingPointInstruction()
+    if terms[0] == "string" and terms[1] == '(':
+        return castToStringInstruction()
     
     if terms[0] == "sleep_until_complete":
         return sleepUntilCompleteInstruction()
@@ -3381,8 +3398,24 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
     if (terms[1] == '(' or (isDisableExpression := terms[1] == '*' and terms[2] == '(')) and not isOperatorChar(terms[0]):
         if nameIsVar(terms[0]):
             if isDisableExpression:
+                readingString = False
                 for term in terms[3:]:
-                    if isOperatorChar(term) and term != ',':
+                    # stuff to ignore strings in this test
+                    if readingString:
+                        if term == '\\':
+                            escape = not escape
+                            continue
+                        if term == exitTerm and not escape:
+                            readingString = False
+                        escape = False
+                        continue
+                    if term in ('"', "'"):
+                        exitTerm = term
+                        readingString = True
+                        escape = False
+                        continue
+                    
+                    if isOperatorChar(term) and term not in (',', ')', ';'):
                         #the test has failed, 
                         #so this must be an case where we have for example:
                         #var1 = var2 * (var3 + 2);
@@ -3391,7 +3424,7 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
                     return variableCallInstruction()
             else:
                 return variableCallInstruction()
-        else:
+        elif terms[0][0] not in '0123456789.':
             return callInstruction()
     
     if '=' in terms:
