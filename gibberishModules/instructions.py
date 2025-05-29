@@ -2576,7 +2576,7 @@ class boolArrayOpenInstruction(parentArrayOpenInstruction):
         super().writeToKsm(section)
         valuesModLength = len(self.array.values) % 4
         valuesPadLength = 4 - valuesModLength if valuesModLength != 0 else 0
-        values = self.array.values + ([0] * valuesModLength)
+        values = self.array.values + ([0] * valuesPadLength)
         for i in range(0, len(values), 4):
             newVal = 0
             for bitshift in range(4):
