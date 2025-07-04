@@ -3395,7 +3395,7 @@ def identifyInstructionFromCpp(file: object, thisData: object, aligned: bool = F
     if terms[1] == ':':
         return labelInstruction()
     
-    if (terms[1] == '(' or (isDisableExpression := terms[1] == '*' and terms[2] == '(')) and not isOperatorChar(terms[0]):
+    if ((isDisableExpression := terms[1] == '*' and terms[2] == '(') or terms[1] == '(') and not isOperatorChar(terms[0]):
         if nameIsVar(terms[0]):
             if isDisableExpression:
                 readingString = False
