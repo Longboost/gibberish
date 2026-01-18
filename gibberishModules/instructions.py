@@ -509,8 +509,7 @@ class closeFunctionInstruction(parentInstruction):
 #Goto - Jump to a specified label in the function.
 class gotoInstruction(parentInstruction):
     def writeToCpp(self, indentLevel: int) -> (str, int, int):
-        isAltType = isinstance(self, caseGotoInstruction)
-        return f"goto{'*' if isAltType else ''} {self.labelAlias};\n", indentLevel, 0
+        return f"goto {self.labelAlias};\n", indentLevel, 0
     
     def readFromKsm(self, wordsEnumerated: enumerate[int], currentWord: object):
         assert not self.disableExpression
